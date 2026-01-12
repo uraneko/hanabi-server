@@ -55,7 +55,7 @@ fn build_ui() -> Result<ExitStatus, UIErr> {
 
 fn copy_ui() -> Result<ExitStatus, UIErr> {
     Cmd::new("cp")
-        .args(&["dist", "-r", "../../../rust/hanabi"])
+        .args(&["build", "-r", "../../../rust/hanabi"])
         .status()
         .map_err(|_| UIErr::FailedToCopyFiles)
 }
@@ -127,8 +127,10 @@ fn check_table(conn: &Connection) -> Result<(), DBErr> {
 }
 
 fn make_table(conn: &Connection) -> Result<(), DBErr> {
-    conn.execute("CREATE TABLE users (name TEXT, password TEXT);")
-        .map_err(|_| DBErr::TableCreateFailed)
+    conn.execute(
+        "create table users (name text, email blob, pswd blob, salt text, created integer) strict;",
+    )
+    .map_err(|_| DBErr::TableCreateFailed)
 }
 
 fn check_columns(conn: &Connection) -> Result<(), DBErr> {
@@ -137,7 +139,14 @@ fn check_columns(conn: &Connection) -> Result<(), DBErr> {
         .map_err(|_| DBErr::FailedToProcessQueryRow)?;
     stt.next().map_err(|_| DBErr::FailedToProcessQueryRow)?;
 
-    if stt.column_names() != &["name".to_owned(), "password".into()] {
+    if stt.column_names()
+        != &[
+            "name".to_owned(),
+            "password".into(),
+            "salt".into(),
+            "created_on".into(),
+        ]
+    {
         return Err(DBErr::TableColumnsMismatch);
     }
 
