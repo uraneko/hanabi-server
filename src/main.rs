@@ -1,8 +1,14 @@
-use pheasant::http::{Method, Protocol, Respond, request::Request, status};
+use pheasant::http::{
+    Method, Protocol,
+    server::{Request, Respond},
+    status,
+};
 use pheasant::services::{
     Server, Socket, bad_request, error_status, parse, read_stream, req_buf, resp_write_stream,
 };
 
+mod auth;
+mod index;
 mod services;
 use services::lookup;
 
