@@ -1,4 +1,4 @@
-use sqlite::Connection;
+use rusqlite::Connection;
 use std::env::set_current_dir as cd;
 use std::process::{Command as Cmd, ExitStatus};
 use std::{fs, path::Path};
@@ -109,18 +109,20 @@ fn make_dir() -> Result<(), DBErr> {
 
 // creates a new db if it doesnt exist
 fn open_database() -> Result<Connection, DBErr> {
-    sqlite::open("data/main.db3").map_err(|_| DBErr::FailedToOpenDB)
+    Connection::open("data/main.db3").map_err(|_| DBErr::FailedToOpenDB)
 }
 
 fn check_table(conn: &Connection) -> Result<(), DBErr> {
-    let mut stt = conn
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+    let table_name: String = conn
+        .query_row(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='users';",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| DBErr::FailedToProcessQueryRow)?;
-    stt.next().map_err(|_| DBErr::FailedToProcessQueryRow)?;
 
-    match stt.read::<String, _>("name") {
-        Ok(val) if val == "users".to_owned() => (),
-        _ => return Err(DBErr::TableNotFound),
+    if table_name.as_str() != "users" {
+        return Err(DBErr::TableNotFound);
     }
 
     Ok(())
@@ -128,24 +130,18 @@ fn check_table(conn: &Connection) -> Result<(), DBErr> {
 
 fn make_table(conn: &Connection) -> Result<(), DBErr> {
     conn.execute(
-        "create table users (name text, email blob, pswd blob, salt text, created integer) strict;",
+        "create table users (name text not null primary key, email blob unique, pswd blob not null unique, salt text not null unique, created integer not null) strict;", []
     )
-    .map_err(|_| DBErr::TableCreateFailed)
+    .map_err(|_| DBErr::TableCreateFailed).map(|_| ())
 }
 
-fn check_columns(conn: &Connection) -> Result<(), DBErr> {
-    let mut stt = conn
-        .prepare("select * from users limit 0")
-        .map_err(|_| DBErr::FailedToProcessQueryRow)?;
-    stt.next().map_err(|_| DBErr::FailedToProcessQueryRow)?;
+const COLS: &[&str] = &["name", "email", "pswd", "salt", "created"];
 
-    if stt.column_names()
-        != &[
-            "name".to_owned(),
-            "password".into(),
-            "salt".into(),
-            "created_on".into(),
-        ]
+fn check_columns(conn: &Connection) -> Result<(), DBErr> {
+    if !conn
+        .prepare("select * from users limit 0")
+        .map(|stt| stt.column_names() == COLS)
+        .map_err(|_| DBErr::FailedToProcessQueryRow)?
     {
         return Err(DBErr::TableColumnsMismatch);
     }
