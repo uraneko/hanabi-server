@@ -16,7 +16,7 @@ use operations::{
     db_clear_login_refresh, db_query_field_availability, db_write_login_refresh,
     get_name_by_refresh, get_user_by_email, get_user_by_name, register_user,
 };
-use prologue::{Token, User};
+use prologue::{Token, User, password};
 
 // extern crate alloc;
 // use alloc::borrow::Cow;
@@ -227,11 +227,11 @@ impl Resource<Socket> for Auth {
             return err_stt!(?400);
         }
 
-        verify_len(pswd.as_bytes()).map_err(|_| err_stt!(500))?;
-        verify_ascii(pswd.as_bytes()).map_err(|_| err_stt!(500))?;
-        verify_symbols(pswd.as_bytes()).map_err(|_| err_stt!(500))?;
+        password::verify_len(pswd.as_bytes()).map_err(|_| err_stt!(500))?;
+        password::verify_ascii(pswd.as_bytes()).map_err(|_| err_stt!(500))?;
+        password::verify_symbols(pswd.as_bytes()).map_err(|_| err_stt!(500))?;
         let salt = melh::salt_ascii(8, 16);
-        let pswd = hash_pswd(pswd.as_bytes(), &salt);
+        let pswd = password::hash_pswd(pswd.as_bytes(), &salt);
         let date = chrono::Utc::now().timestamp_millis();
         let salt = str::from_utf8(&salt).map_err(|_| err_stt!(400))?;
         let email = email.map(|email| Sha256::digest(email.as_bytes()).as_slice().to_vec());
@@ -289,7 +289,7 @@ impl Resource<Socket> for Auth {
         let db_pswd = user.try_get("pswd").map_err(|_| err_stt!(503))?;
         let db_salt = user.try_get("salt").map_err(|_| err_stt!(503))?;
 
-        if !match_pswd(&pswd, db_salt, db_pswd) {
+        if !password::match_pswd(&pswd, db_salt, db_pswd) {
             return err_stt!(?403);
         }
         let (name, email): (String, Option<String>) = if name.contains('@') {
@@ -367,57 +367,6 @@ impl Resource<Socket> for Auth {
 
         Ok(())
     }
-}
-
-fn hash_pswd(pswd: &[u8], salt: &[u8]) -> Vec<u8> {
-    Sha256::digest([pswd, salt].concat()).as_slice().to_vec()
-}
-
-fn match_pswd(client_pswd: &str, db_salt: &str, db_hash: &[u8]) -> bool {
-    hash_pswd(client_pswd.as_bytes(), db_salt.as_bytes()) == db_hash
-}
-
-pub enum PswdError {
-    TooShort,
-    TooLong,
-    NonAsciiDetected,
-    TooLittleVariation,
-}
-
-const PSWD_MAX: usize = 24;
-const PSWD_MIN: usize = 8;
-
-// WARN these same checks are implemented in the frontend
-// so if they actually get checked here and fail
-// that means the user might be doing something nefarious
-//
-// we enforce len bounds so that the user doesnt pick a password too long and forgets it
-// or too short and easy for a bad actor to crack
-fn verify_len(pswd: &[u8]) -> Result<(), PswdError> {
-    if pswd.len() > PSWD_MAX {
-        return Err(PswdError::TooLong);
-    } else if pswd.len() < PSWD_MIN {
-        return Err(PswdError::TooShort);
-    }
-
-    Ok(())
-}
-
-fn verify_symbols(pswd: &[u8]) -> Result<(), PswdError> {
-    if pswd.iter().all(|b| b.is_ascii_alphanumeric()) {
-        return Err(PswdError::TooLittleVariation);
-    }
-
-    Ok(())
-}
-
-// we enforce ascii only chars for password interoperability
-fn verify_ascii(pswd: &[u8]) -> Result<(), PswdError> {
-    if !pswd.is_ascii() {
-        return Err(PswdError::NonAsciiDetected);
-    }
-
-    Ok(())
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

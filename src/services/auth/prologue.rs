@@ -105,3 +105,58 @@ impl Token {
         buf.extend(Sha256::digest(&self.token).as_slice());
     }
 }
+
+pub mod password {
+    use super::{Digest, Sha256};
+
+    pub enum PswdError {
+        TooShort,
+        TooLong,
+        NonAsciiDetected,
+        TooLittleVariation,
+    }
+
+    const PSWD_MAX: usize = 24;
+    const PSWD_MIN: usize = 8;
+
+    pub fn hash_pswd(pswd: &[u8], salt: &[u8]) -> Vec<u8> {
+        Sha256::digest([pswd, salt].concat()).as_slice().to_vec()
+    }
+
+    pub fn match_pswd(client_pswd: &str, db_salt: &str, db_pswd: &[u8]) -> bool {
+        hash_pswd(client_pswd.as_bytes(), db_salt.as_bytes()) == db_pswd
+    }
+
+    // WARN these same checks are implemented in the frontend
+    // so if they actually get checked here and fail
+    // that means the user might be doing something nefarious
+    //
+    // we enforce len bounds so that the user doesnt pick a password too long and forgets it
+    // or too short and easy for a bad actor to crack
+    pub fn verify_len(pswd: &[u8]) -> Result<(), PswdError> {
+        if pswd.len() > PSWD_MAX {
+            return Err(PswdError::TooLong);
+        } else if pswd.len() < PSWD_MIN {
+            return Err(PswdError::TooShort);
+        }
+
+        Ok(())
+    }
+
+    pub fn verify_symbols(pswd: &[u8]) -> Result<(), PswdError> {
+        if pswd.iter().all(|b| b.is_ascii_alphanumeric()) {
+            return Err(PswdError::TooLittleVariation);
+        }
+
+        Ok(())
+    }
+
+    // we enforce ascii only chars for password interoperability
+    pub fn verify_ascii(pswd: &[u8]) -> Result<(), PswdError> {
+        if !pswd.is_ascii() {
+            return Err(PswdError::NonAsciiDetected);
+        }
+
+        Ok(())
+    }
+}
