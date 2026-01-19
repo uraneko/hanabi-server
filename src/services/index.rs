@@ -1,3 +1,4 @@
+use crate::services::APP_ROUTES;
 use pheasant::http::{
     ErrorStatus, Method, err_stt,
     server::{Request, Respond},
@@ -16,7 +17,7 @@ pub struct SrcFile<'a> {
 
 impl<'a> SrcFile<'a> {
     pub fn new(path: &'a str) -> Result<Self, ErrorStatus> {
-        let path = if path == "/" {
+        let path = if APP_ROUTES.contains(&path) {
             "index.html"
         } else {
             &path[1..]
@@ -33,7 +34,7 @@ fn change_dir(path: &str) -> Result<(), ErrorStatus> {
 
 impl<'a> Resource<Socket> for SrcFile<'a> {
     async fn get(
-        &self,
+        self,
         socket: &mut Socket,
         req: Request,
         resp: &mut Respond,

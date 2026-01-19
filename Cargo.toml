@@ -7,9 +7,13 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1.46.1", features = ["full"] }
 pheasant = { version = "0.1.0", path = "../pheasant" }
-sqlite = "0.37.0"
 sha2 = "0.10.9"
 chrono = "0.4.42"
-
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+melh = { version = "0.1.0", path = "../melh" }
+sqlx = { version = "0.8.6", features = ["sqlite"] }
+makura = { version = "0.1.2", path = "../makura/makura" }
 [build-dependencies]
-sqlite = "0.37.0"
+### WARN this dep and the sqlx one above can only coexist when they both use the same version of libsqlite3-sys dependency
+rusqlite = "0.32.0"

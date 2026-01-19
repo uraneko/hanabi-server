@@ -22,6 +22,7 @@ impl From<UIErr> for Error {
 }
 
 fn main() -> Result<(), Error> {
+    println!("cargo:rerun-if-changed=../../js/hanabi/hanabi*/src");
     check_db()?;
     update_ui()?;
 
