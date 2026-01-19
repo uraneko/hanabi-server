@@ -9,17 +9,15 @@ pub async fn register_user(
     salt: &str,
     created: i64,
 ) -> Result<()> {
-    let res = sqlx::query(
-        "insert into users (name, email, pswd, salt, created) values ($1, $2, $3, $4, $5)",
-    )
-    .bind(name)
-    .bind(email)
-    .bind(pswd)
-    .bind(salt)
-    .bind(created)
-    .execute(conn)
-    .await?
-    .rows_affected();
+    sqlx::query("insert into users (name, email, pswd, salt, created) values ($1, $2, $3, $4, $5)")
+        .bind(name)
+        .bind(email)
+        .bind(pswd)
+        .bind(salt)
+        .bind(created)
+        .execute(conn)
+        .await?
+        .rows_affected();
 
     Ok(())
 }

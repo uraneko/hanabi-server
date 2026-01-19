@@ -9,7 +9,6 @@ use pheasant::services::{
     read_stream, req_buf, resp_write_stream,
 };
 
-mod database_operations;
 mod services;
 use services::lookup;
 

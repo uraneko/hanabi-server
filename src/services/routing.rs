@@ -1,21 +1,18 @@
 use crate::services::APP_ROUTES;
 use pheasant::http::{
-    ErrorStatus, Method, err_stt,
+    ErrorStatus, err_stt,
     server::{Request, Respond},
-    status,
 };
-use pheasant::services::{
-    Cors, MessageBodyInfo, ReadCookies, Resource, Service, Socket, WriteCookies,
-};
+use pheasant::services::{MessageBodyInfo, Resource, Socket};
 use std::io::Read;
 
 // fetch a frontend file
-pub struct SrcFile<'a> {
+pub struct Routing<'a> {
     path: &'a str,
     ext: &'a str,
 }
 
-impl<'a> SrcFile<'a> {
+impl<'a> Routing<'a> {
     pub fn new(path: &'a str) -> Result<Self, ErrorStatus> {
         let path = if APP_ROUTES.contains(&path) {
             "index.html"
@@ -32,11 +29,11 @@ fn change_dir(path: &str) -> Result<(), ErrorStatus> {
     std::env::set_current_dir(path).map_err(|_| err_stt!(500))
 }
 
-impl<'a> Resource<Socket> for SrcFile<'a> {
+impl<'a> Resource<Socket> for Routing<'a> {
     async fn get(
         self,
-        socket: &mut Socket,
-        req: Request,
+        _socket: &mut Socket,
+        _req: Request,
         resp: &mut Respond,
     ) -> Result<(), ErrorStatus> {
         change_dir("build")?;
