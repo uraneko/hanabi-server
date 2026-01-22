@@ -2,11 +2,18 @@
 name = "hanabi"
 version = "0.1.0"
 edition = "2024"
+# build = false
 
 [dependencies]
-chrono = { version = "0.4.41", features = ["serde"] }
-fs4 = "0.13.1"
-serde = "1.0.219"
-serde_json = "1.0.141"
 tokio = { version = "1.46.1", features = ["full"] }
-pheasant = { path = "../pheasant" }
+pheasant = { version = "0.1.0", path = "../pheasant" }
+sha2 = "0.10.9"
+chrono = "0.4.42"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+melh = { version = "0.1.0", path = "../melh" }
+sqlx = { version = "0.8.6", features = ["sqlite"] }
+makura = { version = "0.1.2", path = "../makura/makura" }
+[build-dependencies]
+### WARN this dep and the sqlx one above can only coexist when they both use the same version of libsqlite3-sys dependency
+rusqlite = "0.32.0"
