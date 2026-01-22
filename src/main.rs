@@ -38,6 +38,7 @@ async fn main() -> Result<(), Error> {
                     http_error(err_stt!(400), &mut resp);
                     print_resp(&resp);
                     resp_write_stream(&resp, &mut stream, Method::Get)?;
+
                     continue;
                 };
                 let req = parse(req_buf);
@@ -48,6 +49,7 @@ async fn main() -> Result<(), Error> {
                         http_error(err, &mut resp);
                         print_resp(&resp);
                         resp_write_stream(&resp, &mut stream, Method::Get)?;
+
                         continue;
                     }
                 };
@@ -61,6 +63,7 @@ async fn main() -> Result<(), Error> {
                         http_error(err, &mut resp);
                         print_resp(&resp);
                         resp_write_stream(&resp, &mut stream, method)?;
+
                         continue;
                     }
                 };
@@ -68,7 +71,10 @@ async fn main() -> Result<(), Error> {
                     http_error(err, &mut resp);
                     print_resp(&resp);
                     resp_write_stream(&resp, &mut stream, method)?;
+
+                    continue;
                 }
+
                 print_resp(&resp);
                 resp_write_stream(&resp, &mut stream, method)?;
             }

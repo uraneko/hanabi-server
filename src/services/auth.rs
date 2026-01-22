@@ -42,7 +42,7 @@ impl Auth {
                 };
 
                 let (Some(field), Some(value)) =
-                    (query.remove_param("field"), query.remove_param("value"))
+                    (query.remove_param("name"), query.remove_param("value"))
                 else {
                     return err_stt!(?400);
                 };
@@ -162,6 +162,7 @@ impl Resource<Socket> for Auth {
         _req: Request,
         resp: &mut Respond,
     ) -> Result<(), ErrorStatus> {
+        // BUG broken probably here
         let Self::Query(QueryField { name, value }) = self else {
             return err_stt!(?400);
         };
@@ -314,12 +315,12 @@ impl Resource<Socket> for Auth {
 
             let mut token_cookie = WriteCookies::new();
             token_cookie
-                .cookie(b"refresh_token", refresh.as_slice())
+                .cookie(refresh.name(), refresh.as_slice())
                 .samesite(0)
                 .secure(true)
                 .http_only(true)
                 .max_age(3600 * 24 * 7);
-            token_cookie.write(b"refresh_token", resp.headers_mut());
+            token_cookie.write(refresh.name(), resp.headers_mut());
             refresh.hash(&mut socket.buffer);
             db_write_login_refresh(&mut socket.conn, &name, &socket.buffer)
                 .await
@@ -344,7 +345,7 @@ impl Resource<Socket> for Auth {
         };
 
         // TODO replace this with the authorization service once it is implemented in pheasant
-        let access = Token::from_encoded(Token::ACCESS, &access[7..access.len() - 2])?;
+        let access = Token::from_encoded(Token::ACCESS, &access[7..access.len() - 1])?;
         access.hash(&mut socket.buffer);
         db_clear_login_access_nameless(&mut socket.conn, &socket.buffer)
             .await
@@ -358,9 +359,7 @@ impl Resource<Socket> for Auth {
                 .await
                 .map_err(|_| err_stt!(403))?;
 
-            let mut clear_cookie = WriteCookies::new();
-            clear_cookie.cookie(b"refresh_token", b"").max_age(0);
-            clear_cookie.write(b"refresh_token", resp.headers_mut());
+            WriteCookies::clear(b"refresh_token", resp.headers_mut());
         }
 
         resp.status(status!(204));
