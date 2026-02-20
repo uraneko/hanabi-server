@@ -15,5 +15,4 @@ melh = { version = "0.1.0", path = "../melh" }
 sqlx = { version = "0.8.6", features = ["sqlite"] }
 makura = { version = "0.1.2", path = "../makura/makura" }
 [build-dependencies]
-### WARN this dep and the sqlx one above can only coexist when they both use the same version of libsqlite3-sys dependency
-rusqlite = "0.32.0"
+hanabi-build = { version = "0.1.0", path = "../hanabi-build" }

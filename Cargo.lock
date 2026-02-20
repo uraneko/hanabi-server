@@ -458,15 +458,22 @@ name = "hanabi"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hanabi-build",
  "makura",
  "melh",
  "pheasant",
- "rusqlite",
  "serde",
  "serde_json",
  "sha2",
  "sqlx",
  "tokio",
+]
+
+[[package]]
+name = "hanabi-build"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
 ]
 
 [[package]]

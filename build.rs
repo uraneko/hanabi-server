@@ -1,151 +1,50 @@
-use rusqlite::Connection;
-use std::env::set_current_dir as cd;
-use std::process::{Command as Cmd, ExitStatus};
-use std::{fs, path::Path};
+use hanabi_build::{
+    Error,
+    db::{DBPipeline, DataDir, Database, Table, TableLayout, TableOptions},
+    ui::UIPipeline,
+};
+use std::sync::LazyLock;
 
-#[derive(Debug)]
-enum Error {
-    DB(DBErr),
-    UI(UIErr),
-}
+const DATA_PATH: &str = "de~tade~su";
+const MAIN_DB: &str = concat!("de~tade~su", "/", "main.db3");
+const USERS_TABLE: LazyLock<Result<Table, Error>> = LazyLock::new(|| {
+    let mut opts = TableOptions::new();
+    opts.make(true).check(true).remake(false);
+    let layout = TableLayout::with_columns([
+        ("name", "text|nn|pk".parse()?),
+        ("email", "blob|u".parse()?),
+        ("pswd", "blob|nn|u".parse()?),
+        ("salt", "text|nn|u".parse()?),
+        ("created", "int|nn".parse()?),
+    ]);
 
-impl From<DBErr> for Error {
-    fn from(err: DBErr) -> Self {
-        Self::DB(err)
-    }
-}
+    Ok(Table::new("users", layout, opts))
+});
 
-impl From<UIErr> for Error {
-    fn from(err: UIErr) -> Self {
-        Self::UI(err)
-    }
-}
+const TOKENS_TABLE: LazyLock<Result<Table, Error>> = LazyLock::new(|| {
+    let mut opts = TableOptions::new();
+    opts.make(true).check(true).remake(false);
+    let layout = TableLayout::with_columns([
+        ("name", "text|nn|pk".parse()?),
+        ("refresh", "blob|u".parse()?),
+        ("access", "blob|u".parse()?),
+    ]);
+
+    Ok(Table::new("tokens", layout, opts))
+});
 
 fn main() -> Result<(), Error> {
     println!("cargo:rerun-if-changed=../../js/hanabi/hanabi*/src");
-    check_db()?;
-    update_ui()?;
+    let ddir = DataDir::new(DATA_PATH);
+    let users = USERS_TABLE.clone()?;
+    let tokens = TOKENS_TABLE.clone()?;
 
-    Ok(())
-}
+    let main_db = Database::with_tables(MAIN_DB, [users, tokens]);
+    let pipeline = DBPipeline::with_dbs(ddir, main_db);
+    pipeline.build()?;
 
-fn update_ui() -> Result<(), UIErr> {
-    change_dir()?;
-    build_ui()?;
-
-    copy_ui().map(|_| ())
-}
-
-#[derive(Debug)]
-enum UIErr {
-    FailedToChangeDir,
-    FailedToBuildPnpmPackage,
-    FailedToCopyFiles,
-}
-
-fn change_dir() -> Result<(), UIErr> {
-    cd("../../js/hanabi/hanabi").map_err(|_| UIErr::FailedToChangeDir)
-}
-
-fn build_ui() -> Result<ExitStatus, UIErr> {
-    Cmd::new("pnpm")
-        .arg("build")
-        .status()
-        .map_err(|_| UIErr::FailedToBuildPnpmPackage)
-}
-
-fn copy_ui() -> Result<ExitStatus, UIErr> {
-    Cmd::new("cp")
-        .args(&["build", "-r", "../../../rust/hanabi"])
-        .status()
-        .map_err(|_| UIErr::FailedToCopyFiles)
-}
-
-fn check_db() -> Result<(), DBErr> {
-    match check_dir() {
-        Err(DBErr::DataIsNotADir) => panic!("data already exists and is not a dir"),
-        Err(DBErr::DataDirNotFound) => make_dir()?,
-        Ok(()) => (),
-        _ => unreachable!("function doesnt return this variant"),
-    }
-    let conn = open_database()?;
-    match check_table(&conn) {
-        Ok(()) => (),
-        Err(DBErr::FailedToProcessQueryRow) => {
-            panic!("internal error; db query processing failed")
-        }
-        Err(DBErr::TableNotFound) => make_table(&conn)?,
-        _ => unreachable!("function doesnt return this variant"),
-    }
-
-    check_columns(&conn)
-}
-
-#[derive(Debug)]
-enum DBErr {
-    FailedToCreateDataDir,
-    FailedToOpenDB,
-    FailedToProcessQueryRow,
-    TableNotFound,
-    TableCreateFailed,
-    TableColumnsMismatch,
-    DataDirNotFound,
-    DataIsNotADir,
-}
-
-fn check_dir() -> Result<(), DBErr> {
-    let path = Path::new("data");
-    if path.is_file() || path.is_symlink() {
-        return Err(DBErr::DataIsNotADir);
-    } else if !path.exists() {
-        return Err(DBErr::DataDirNotFound);
-    }
-
-    Ok(())
-}
-
-fn make_dir() -> Result<(), DBErr> {
-    fs::create_dir("data").map_err(|_| DBErr::FailedToCreateDataDir)
-}
-
-// creates a new db if it doesnt exist
-fn open_database() -> Result<Connection, DBErr> {
-    Connection::open("data/main.db3").map_err(|_| DBErr::FailedToOpenDB)
-}
-
-fn check_table(conn: &Connection) -> Result<(), DBErr> {
-    let table_name: String = conn
-        .query_row(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='users';",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|_| DBErr::FailedToProcessQueryRow)?;
-
-    if table_name.as_str() != "users" {
-        return Err(DBErr::TableNotFound);
-    }
-
-    Ok(())
-}
-
-fn make_table(conn: &Connection) -> Result<(), DBErr> {
-    conn.execute(
-        "create table users (name text not null primary key, email blob unique, pswd blob not null unique, salt text not null unique, created integer not null) strict;", []
-    )
-    .map_err(|_| DBErr::TableCreateFailed).map(|_| ())
-}
-
-const COLS: &[&str] = &["name", "email", "pswd", "salt", "created"];
-
-fn check_columns(conn: &Connection) -> Result<(), DBErr> {
-    if !conn
-        .prepare("select * from users limit 0")
-        .map(|stt| stt.column_names() == COLS)
-        .map_err(|_| DBErr::FailedToProcessQueryRow)?
-    {
-        return Err(DBErr::TableColumnsMismatch);
-    }
+    let pipeline = UIPipeline::new().copy(true).build(false);
+    pipeline.update(".", "attempt")?;
 
     Ok(())
 }
