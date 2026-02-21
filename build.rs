@@ -5,8 +5,8 @@ use hanabi_build::{
 };
 use std::sync::LazyLock;
 
-const DATA_PATH: &str = "de~tade~su";
-const MAIN_DB: &str = concat!("de~tade~su", "/", "main.db3");
+const DATA_PATH: &str = "data";
+const MAIN_DB: &str = concat!("data", "/", "main.db3");
 const USERS_TABLE: LazyLock<Result<Table, Error>> = LazyLock::new(|| {
     let mut opts = TableOptions::new();
     opts.make(true).check(true).remake(false);
@@ -44,7 +44,7 @@ fn main() -> Result<(), Error> {
     pipeline.build()?;
 
     let pipeline = UIPipeline::new().copy(true).build(false);
-    pipeline.update(".", "attempt")?;
+    pipeline.update("../../js/hanabi/hanabi", "build")?;
 
     Ok(())
 }
