@@ -56,6 +56,7 @@ macro_rules! tkn {
 
 #[derive(Debug)]
 pub enum Error {
+    LineIsNotAProperty,
     LineIsNotAComment,
     TokenByteMismatch,
     TokenBytesMismatch,
@@ -134,7 +135,7 @@ fn lex_line(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Resul
     match line {
         line if line_is_section(line) => lex_section(line, tokens, str_buf)?,
         line if line_is_comment(line) => lex_comment(line, tokens, str_buf)?,
-        line if line_is_property(line) => lex_property(),
+        line if line_is_property(line) => lex_property(line, tokens, str_buf)?,
         line if line_is_attribute(line) => lex_attribute(),
         _ => return Err(Error::UnparsableLine),
     }
@@ -192,8 +193,7 @@ fn lex_section(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Re
             },
             // section partitioner
             b'.' => {
-                tokens.push(tkn!(str_buf.drain(..).collect::<String>()));
-                tokens.push(tkn!(.));
+                tokens.extend([tkn!(str_buf.drain(..).collect::<String>()), tkn!(.)]);
             }
             // normal byte/char, simply take it
             b => {
@@ -223,9 +223,34 @@ fn line_is_comment(line: &[u8]) -> bool {
     line.starts_with(b"#")
 }
 
-fn lex_property() {}
+fn lex_property(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
+    if line[0] == b'=' || !line.contains(&b'=') {
+        return Err(Error::LineIsNotAProperty);
+    }
+    let mut iter = line.iter();
+    while let Some(byte) = iter.next() {
+        match byte {
+            // escaped eqls
+            b'\\' => match iter.next() {
+                None => return Err(Error::ExpectedByteFoundEol),
+                Some(b'=') => str_buf.push('='),
+                _ => return Err(Error::InvalidEscapeForComponent),
+            },
+
+            // component partitioner
+            b'=' => {
+                tokens.extend([tkn!(str_buf.drain(..).collect::<String>()), tkn!(=)]);
+            }
+            // normal char
+            b => str_buf.push(*b as char),
+        }
+    }
+    tokens.push(tkn!(str_buf.clone()));
+
+    Ok(())
+}
 fn line_is_property(line: &[u8]) -> bool {
-    line.contains(&b'=') && !line.starts_with(b"=") && !line.ends_with(b"=")
+    line.contains(&b'=') && !line.starts_with(b"=")
 }
 
 fn lex_attribute() {}
