@@ -56,6 +56,7 @@ macro_rules! tkn {
 
 #[derive(Debug)]
 pub enum Error {
+    LineIsNotAComment,
     TokenByteMismatch,
     TokenBytesMismatch,
     LineIsNotASection,
@@ -69,21 +70,30 @@ pub enum Error {
 pub struct Lex<'a> {
     slice: &'a [u8],
     cursor: usize,
+    str_buf: String,
 }
 
 impl<'a> Lex<'a> {
     pub fn new(slice: &'a [u8]) -> Self {
-        Self { slice, cursor: 0 }
+        Self {
+            slice,
+            cursor: 0,
+            str_buf: "".into(),
+        }
     }
 
     pub fn lex(&mut self) -> Result<Vec<Token>, Error> {
         let mut tokens = vec![];
         while let Some((eol, eol_tkn)) = find_eol_idx(self.slice, self.cursor) {
-            lex_line(&self.slice[self.cursor..eol], &mut tokens)?;
+            lex_line(
+                &self.slice[self.cursor..eol],
+                &mut tokens,
+                &mut self.str_buf,
+            )?;
             self.cursor = eol + eol_tkn.len();
             tokens.push(eol_tkn);
         }
-        lex_line(&self.slice[self.cursor..], &mut tokens)?;
+        lex_line(&self.slice[self.cursor..], &mut tokens, &mut self.str_buf)?;
 
         Ok(tokens)
     }
@@ -118,11 +128,12 @@ fn find_eol_idx(buf: &[u8], cursor: usize) -> Option<(usize, Token)> {
     }
 }
 
-fn lex_line(line: &[u8], tokens: &mut Vec<Token>) -> Result<(), Error> {
+fn lex_line(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
+    str_buf.clear();
     let line = line.trim_ascii();
     match line {
-        line if line_is_section(line) => lex_section(line, tokens)?,
-        line if line_is_comment(line) => lex_comment(),
+        line if line_is_section(line) => lex_section(line, tokens, str_buf)?,
+        line if line_is_comment(line) => lex_comment(line, tokens, str_buf)?,
         line if line_is_property(line) => lex_property(),
         line if line_is_attribute(line) => lex_attribute(),
         _ => return Err(Error::UnparsableLine),
@@ -162,37 +173,36 @@ fn revert_escape_sequence(seq: &[u8]) -> Result<u8, Error> {
     })
 }
 
-fn lex_section(line: &[u8], tokens: &mut Vec<Token>) -> Result<(), Error> {
+fn lex_section(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
     let len = line.len();
     if line[0] != b'[' || line[len - 1] != b']' {
         return Err(Error::LineIsNotASection);
     };
     tokens.push(tkn!('['));
     let mut iter = line[1..len - 1].iter();
-    let mut token = String::new();
     while let Some(byte) = iter.next() {
         match byte {
             // incoming escape, handle here, dont pass it to the while loop
             b'\\' => match iter.next() {
                 Some(n @ b']') | Some(n @ b'.') => {
-                    token.push(*n as char);
+                    str_buf.push(*n as char);
                 }
                 None => return Err(Error::ExpectedByteFoundEol),
                 _ => return Err(Error::InvalidEscapeForComponent),
             },
             // section partitioner
             b'.' => {
-                tokens.push(tkn!(token.drain(..).collect::<String>()));
+                tokens.push(tkn!(str_buf.drain(..).collect::<String>()));
                 tokens.push(tkn!(.));
             }
             // normal byte/char, simply take it
             b => {
-                token.push(*b as char);
+                str_buf.push(*b as char);
             }
         }
     }
 
-    tokens.extend([tkn!(token), tkn!(']')]);
+    tokens.extend([tkn!(str_buf.clone()), tkn!(']')]);
 
     Ok(())
 }
@@ -200,7 +210,15 @@ fn line_is_section(line: &[u8]) -> bool {
     line.starts_with(b"[") && line.ends_with(b"]")
 }
 
-fn lex_comment() {}
+fn lex_comment(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
+    if line[0] != b'#' {
+        return Err(Error::LineIsNotAComment);
+    }
+    str_buf.extend(line[1..].iter().map(|b| *b as char));
+    tokens.extend([tkn!(#), tkn!(str_buf.clone())]);
+
+    Ok(())
+}
 fn line_is_comment(line: &[u8]) -> bool {
     line.starts_with(b"#")
 }

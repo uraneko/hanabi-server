@@ -1,6 +1,7 @@
 use hanabi_configs::Lex;
 
-const INPUT: &[u8; 55] = b"[asd.we]\n[t43r\\] ca.43we\\.e3]\r\n [ \\...\\]  \\.  \\]..]    ";
+const INPUT: &[u8; 68] =
+    b"[asd.we]\n[t43r\\] ca.43we\\.e3]\r\n [ \\...\\]  \\.  \\]..]    \n  #fqe#t4wrv";
 fn main() {
     let mut lex = Lex::new(INPUT);
     let tokens = lex.lex();
