@@ -1,0 +1,10 @@
+[package]
+name = "hanabi-configs"
+version = "0.1.0"
+edition = "2024"
+
+[[example]]
+name = "e1"
+path = "examples/test.rs"
+
+[dependencies]
