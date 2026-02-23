@@ -1,6 +1,6 @@
 use super::lex::Token;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TokenGroup {
     Section(Vec<Token>),
     Comment(Token),

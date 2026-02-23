@@ -138,7 +138,6 @@ fn find_eol_idx(buf: &[u8], cursor: usize) -> Option<(usize, Token)> {
 fn lex_line(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
     str_buf.clear();
     let line = line.trim_ascii();
-    println!("{:?}", str::from_utf8(line));
     match line {
         line if line_is_section(line) => lex_section(line, tokens, str_buf)?,
         line if line_is_comment(line) => lex_comment(line, tokens, str_buf)?,

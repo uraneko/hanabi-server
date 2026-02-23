@@ -1,7 +1,7 @@
 use super::analyze_syntax::TokenGroup;
 use super::lex::Token;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Component {
     Section(Section),
     Comment(Comment),
@@ -9,28 +9,40 @@ pub enum Component {
     Attribute(Attribute),
 }
 
-#[derive(Debug)]
-pub struct Section(Vec<String>);
-
-#[derive(Debug)]
-pub struct Comment(String);
-
-#[derive(Debug)]
-pub struct Property {
-    key: String,
-    // val is converted into a useful type value at parse time
-    val: String,
+impl Component {
+    pub fn is_section(&self) -> bool {
+        core::mem::discriminant(self) == core::mem::discriminant(&Self::Section(Section(vec![])))
+    }
 }
 
-#[derive(Debug)]
-pub struct Attribute(String);
+#[derive(Debug, PartialEq, Eq)]
+pub struct Section(pub Vec<String>);
 
-#[derive(Debug)]
+// TODO use this as the data of Section instead of a vec in all cases
+// pub enum SectionInner {
+//     Section(String),
+//     Nested(Vec<String>),
+// }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Comment(String);
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Property {
+    pub key: String,
+    // val is converted into a useful type value at parse time
+    pub val: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Attribute(pub String);
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct AnalyzeSemantics {
     groups: Vec<TokenGroup>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     ExpectedSequence,
     ExpectedDot,
