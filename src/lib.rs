@@ -21,15 +21,35 @@ pub enum Error {
     Semantics(SemanticsError),
     ExpectedMainSection,
     InputIsEmpty,
-    UnexpectedPropertyKey,
     UnexpectedComponent,
+    UndesirablePropertyKey,
     UnexpectedAttribute,
     FailedToParseValue,
     UnrecognizableSection,
 }
 
-pub trait Parse: Sized {
-    fn deserialize(input: &[u8]) -> Result<Self, Error>;
+pub trait Parse: Sized + Default {
+    fn deserialize(input: &[u8]) -> Result<Self, Error> {
+        let tokens = Lex::new(input).lex()?;
+        println!("{:?}", tokens);
+        let groups = AnalyzeSyntax::new(tokens).analyze()?;
+        let components = AnalyzeSemantics::new(groups).analyze()?;
+        if components.is_empty() {
+            return Err(Error::InputIsEmpty);
+        }
+
+        let mut iter = components.into_iter().peekable();
+        // // ignore main section component
+        // // we already know it exists since we forced it in the semantic analysis
+        // iter.next();
+
+        let mut parsed = Self::default();
+        while let Some(Component::Section(Section(section))) = iter.next() {
+            parsed.parse_section(section, &mut iter)?;
+        }
+
+        Ok(parsed)
+    }
 
     fn parse_section(
         &mut self,

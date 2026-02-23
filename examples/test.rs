@@ -97,7 +97,7 @@ impl Test {
             match iter.next() {
                 Some(Component::Property(Property { key, val })) => {
                     if key != "verbosity" {
-                        return Err(Error::UnexpectedPropertyKey);
+                        return Err(Error::UndesirablePropertyKey);
                     }
 
                     self.verbosity = val;
@@ -123,7 +123,7 @@ impl Test {
         match iter.next() {
             Some(Component::Property(Property { key, val })) => {
                 if key != "installed" {
-                    return Err(Error::UnexpectedPropertyKey);
+                    return Err(Error::UndesirablePropertyKey);
                 }
                 self.apps.installed = parse_vec(&val)?;
             }

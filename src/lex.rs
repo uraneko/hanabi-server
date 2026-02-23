@@ -98,7 +98,9 @@ impl<'a> Lex<'a> {
                 &mut self.str_buf,
             )?;
             self.cursor = eol + eol_tkn.len();
-            tokens.push(eol_tkn);
+            if !tokens[tokens.len() - 1].is_eol() {
+                tokens.push(eol_tkn);
+            }
         }
         lex_line(&self.slice[self.cursor..], &mut tokens, &mut self.str_buf)?;
 
@@ -108,6 +110,10 @@ impl<'a> Lex<'a> {
 
 fn find_eol_idx(buf: &[u8], cursor: usize) -> Option<(usize, Token)> {
     let slice = &buf[cursor..];
+    if slice.is_empty() {
+        return None;
+    }
+
     let len = slice.len();
     let mut idx = 0;
     loop {
@@ -138,6 +144,9 @@ fn find_eol_idx(buf: &[u8], cursor: usize) -> Option<(usize, Token)> {
 fn lex_line(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
     str_buf.clear();
     let line = line.trim_ascii();
+    if line.is_empty() {
+        return Ok(());
+    }
     match line {
         line if line_is_section(line) => lex_section(line, tokens, str_buf)?,
         line if line_is_comment(line) => lex_comment(line, tokens, str_buf)?,
@@ -147,37 +156,6 @@ fn lex_line(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Resul
     }
 
     Ok(())
-}
-
-fn bypass_space(slice: &[u8], cursor: &mut usize) {
-    while slice[*cursor] == 32 {
-        *cursor += 1;
-    }
-}
-
-fn consume_line_spaces(line: &[u8]) -> [usize; 2] {
-    let mut start = 0;
-    while line[start] == 32 {
-        start += 1;
-    }
-    let len = line.len() - 1;
-    let mut end = 0;
-    while line[len - end] == 32 {
-        end += 1;
-    }
-
-    [start, end]
-}
-
-fn revert_escape_sequence(seq: &[u8]) -> Result<u8, Error> {
-    Ok(match seq {
-        b"\\." => b'.',
-        b"\\#" => b'#',
-        b"\\=" => b'=',
-        b"\\]" => b']',
-        b"\\\\" => b'\\',
-        _ => return Err(Error::InvalidINIEscapeSequence),
-    })
 }
 
 fn lex_section(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Result<(), Error> {
@@ -199,15 +177,30 @@ fn lex_section(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> Re
             },
             // section partitioner
             b'.' => {
+                if str_buf.is_empty() {
+                    tokens.push(tkn!(.));
+                    continue;
+                } else if str_buf.as_bytes()[str_buf.len() - 1] == 32 {
+                    str_buf.pop();
+                }
                 tokens.extend([tkn!(str_buf.drain(..).collect::<String>()), tkn!(.)]);
             }
             // normal byte/char, simply take it
             b => {
-                str_buf.push(*b as char);
+                if !(str_buf.is_empty() && *b == 32) {
+                    str_buf.push(*b as char);
+                }
             }
         }
     }
 
+    if str_buf.is_empty() {
+        tokens.push(tkn!(']'));
+
+        return Ok(());
+    } else if str_buf.as_bytes()[str_buf.len() - 1] == 32 {
+        str_buf.pop();
+    }
     tokens.extend([tkn!(str_buf.clone()), tkn!(']')]);
 
     Ok(())
@@ -245,11 +238,26 @@ fn lex_property(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> R
 
             // component partitioner
             b'=' => {
+                if str_buf.is_empty() {
+                    tokens.push(tkn!(.));
+                    continue;
+                } else if str_buf.as_bytes()[str_buf.len() - 1] == 32 {
+                    str_buf.pop();
+                }
                 tokens.extend([tkn!(str_buf.drain(..).collect::<String>()), tkn!(=)]);
             }
             // normal char
-            b => str_buf.push(*b as char),
+            b => {
+                if !(str_buf.is_empty() && *b == 32) {
+                    str_buf.push(*b as char);
+                }
+            }
         }
+    }
+    if str_buf.is_empty() {
+        return Ok(());
+    } else if str_buf.as_bytes()[str_buf.len() - 1] == 32 {
+        str_buf.pop();
     }
     tokens.push(tkn!(str_buf.clone()));
 
@@ -268,7 +276,11 @@ fn lex_attribute(line: &[u8], tokens: &mut Vec<Token>, str_buf: &mut String) -> 
                 None => return Err(Error::ExpectedByteFoundEol),
                 _ => return Err(Error::InvalidEscapeForComponent),
             },
-            b => str_buf.push(*b as char),
+            b => {
+                if !(str_buf.is_empty() && *b == 32) {
+                    str_buf.push(*b as char);
+                }
+            }
         }
     }
     tokens.push(tkn!(str_buf.drain(..).collect::<String>()));
@@ -283,4 +295,35 @@ fn line_is_attribute(line: &[u8]) -> bool {
             .filter_map(|(i, b)| if *b == b'=' { Some(i) } else { None })
             .map(|idx| idx > 0 && line[idx - 1] == b'\\')
             .any(|b| !b)
+}
+
+fn bypass_space(slice: &[u8], cursor: &mut usize) {
+    while slice[*cursor] == 32 {
+        *cursor += 1;
+    }
+}
+
+fn consume_line_spaces(line: &[u8]) -> [usize; 2] {
+    let mut start = 0;
+    while line[start] == 32 {
+        start += 1;
+    }
+    let len = line.len() - 1;
+    let mut end = 0;
+    while line[len - end] == 32 {
+        end += 1;
+    }
+
+    [start, end]
+}
+
+fn revert_escape_sequence(seq: &[u8]) -> Result<u8, Error> {
+    Ok(match seq {
+        b"\\." => b'.',
+        b"\\#" => b'#',
+        b"\\=" => b'=',
+        b"\\]" => b']',
+        b"\\\\" => b'\\',
+        _ => return Err(Error::InvalidINIEscapeSequence),
+    })
 }

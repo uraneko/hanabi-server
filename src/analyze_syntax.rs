@@ -27,14 +27,22 @@ impl AnalyzeSyntax {
 
     pub fn analyze(mut self) -> Result<Vec<TokenGroup>, Error> {
         let mut groups = vec![];
+        // let eol_suffix = self.tokens[self.tokens.len() - 1].is_eol()
         // ends of lines
 
         while let Some(idx) = find_eol(&self.tokens) {
             // + 1 cuz we dont want the eol token to mess up the next iteration, if any
+            println!("-><{:?}", &self.tokens[..idx + 1]);
             let mut iter = self.tokens.drain(..idx + 1);
+            // this gets rid of eol token
             iter.next_back();
             groups.push(group_tokens(iter)?);
+
+            if self.tokens.is_empty() {
+                return Ok(groups);
+            }
         }
+
         let last_group = group_tokens(self.tokens.into_iter())?;
         groups.push(last_group);
 
@@ -43,13 +51,14 @@ impl AnalyzeSyntax {
 }
 
 fn find_eol(tokens: &[Token]) -> Option<usize> {
+    println!("***{:?}", tokens);
     let mut idx = 0;
     let last = tokens.len() - 1;
     loop {
-        if idx == last {
-            return None;
-        } else if tokens[idx].is_eol() {
+        if tokens[idx].is_eol() {
             return Some(idx);
+        } else if idx == last {
+            return None;
         }
         idx += 1;
     }
@@ -67,7 +76,10 @@ fn group_tokens(mut iter: impl DoubleEndedIterator<Item = Token>) -> Result<Toke
             Some(val_token @ Token::Sequence(_)),
         ] => group_property(key_token, val_token, iter),
         [Some(attr_token @ Token::Sequence(_)), None] => group_attribute(attr_token, iter),
-        _ => Err(Error::UnparsableTokenCombination),
+        erroneous => {
+            println!("{:?}", erroneous);
+            Err(Error::UnparsableTokenCombination)
+        }
     }
 }
 
