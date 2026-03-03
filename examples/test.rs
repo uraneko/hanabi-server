@@ -1,6 +1,6 @@
 use core::iter::Peekable;
-use hanabi_configs::{AnalyzeSemantics, AnalyzeSyntax, Error, Lex, Parse, parse_vec};
-use hanabi_configs::{Attribute, Component, Property, Section};
+use hanabi_configs::parse::{AnalyzeSemantics, AnalyzeSyntax, Error, Lex, Parse, parse_vec};
+use hanabi_configs::parse::{Attribute, Component, Property, Section};
 
 const INPUT: &[u8; 67] =
     b"logging\nverbosity=warn\n[apps]\n\rinstalled=drive comms machines\n[abc]";
