@@ -10,7 +10,9 @@ pub enum Error {
     FailedToCopyFiles,
 }
 
-#[derive(Clone)]
+// TODO refactor the fs walker
+
+#[derive(Clone, Debug)]
 pub struct WorkDir(PathBuf);
 
 impl WorkDir {
@@ -37,6 +39,7 @@ impl WorkDir {
     }
 }
 
+#[derive(Debug)]
 pub struct UIPipeline {
     copy: bool,
     build: bool,
@@ -72,7 +75,8 @@ impl UIPipeline {
         }
 
         if self.copy {
-            copy_ui(copy_path).map(|_| ())?
+            let path_to_copy_build = &[cargo_dir.dir_ref(), "/", copy_path].concat();
+            copy_ui(path_to_copy_build).map(|_| ())?
         }
         cargo_dir.travel()?;
 

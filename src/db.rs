@@ -353,8 +353,7 @@ impl Database {
                 if !t.options.check {
                     return Ok(());
                 }
-                println!("checking table");
-                println!("{:?}", t.check(&self.state));
+                // println!("checking table");
 
                 match t.check(&state) {
                     ok @ Ok(_) => return ok,
@@ -368,7 +367,7 @@ impl Database {
                     }
                     _ => unreachable!("fn returns either ok or err:tablenotfound"),
                 }
-                println!("checked table existence");
+                // println!("checked table existence");
 
                 match t.check_columns(&self.conn) {
                     Ok(()) => (),
@@ -382,7 +381,7 @@ impl Database {
                     }
                     err => return err,
                 }
-                println!("checked table columns");
+                // println!("checked table columns");
 
                 Ok(())
             })
