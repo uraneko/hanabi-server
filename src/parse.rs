@@ -31,9 +31,9 @@ pub enum Error {
 pub trait Parse: Sized + Default {
     fn deserialize(input: &[u8]) -> Result<Self, Error> {
         let tokens = Lex::new(input).lex()?;
-        println!("{:?}", tokens);
         let groups = AnalyzeSyntax::new(tokens).analyze()?;
         let components = AnalyzeSemantics::new(groups).analyze()?;
+        // println!("{:?}", components);
         if components.is_empty() {
             return Err(Error::InputIsEmpty);
         }
@@ -45,6 +45,7 @@ pub trait Parse: Sized + Default {
 
         let mut parsed = Self::default();
         while let Some(Component::Section(Section(section))) = iter.next() {
+            // println!("{:?}", section);
             parsed.parse_section(section, &mut iter)?;
         }
 

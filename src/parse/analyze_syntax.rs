@@ -32,7 +32,6 @@ impl AnalyzeSyntax {
 
         while let Some(idx) = find_eol(&self.tokens) {
             // + 1 cuz we dont want the eol token to mess up the next iteration, if any
-            println!("-><{:?}", &self.tokens[..idx + 1]);
             let mut iter = self.tokens.drain(..idx + 1);
             // this gets rid of eol token
             iter.next_back();
@@ -51,7 +50,6 @@ impl AnalyzeSyntax {
 }
 
 fn find_eol(tokens: &[Token]) -> Option<usize> {
-    println!("***{:?}", tokens);
     let mut idx = 0;
     let last = tokens.len() - 1;
     loop {

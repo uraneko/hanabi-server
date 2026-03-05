@@ -3,19 +3,19 @@ use crate::parse::{Error, Parse, parse_vec};
 use core::iter::Peekable;
 use std::collections::HashMap;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize, Clone)]
 pub struct Configs {
     main: Main,
-    plugins: HashMap<&'static str, Plugin>,
+    packages: HashMap<&'static str, Package>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize, Clone)]
 pub struct Main {
-    plugins: Vec<String>,
+    packages: Vec<String>,
 }
 
-#[derive(Debug, Default)]
-pub struct Plugin {
+#[derive(Debug, Default, serde::Serialize, Clone)]
+pub struct Package {
     disabled: bool,
     addr: String,
     tags: Vec<String>,
@@ -30,7 +30,7 @@ impl Parse for Configs {
     ) -> Result<(), Error> {
         match section.as_slice() {
             [val] if val == "main" => self.parse_main(iter)?,
-            [root, branch] if root == "plugins" && branch == "drive" => self.parse_drive(iter)?,
+            [root, branch] if root == "packages" && branch == "drive" => self.parse_drive(iter)?,
             _ => return Err(Error::UnrecognizableSection),
         }
 
@@ -62,10 +62,10 @@ impl Configs {
         match comp {
             Component::Comment(_) => return Ok(()),
             Component::Property(Property { key, val }) => {
-                if key != "plugins" {
+                if key != "packages" {
                     return Err(Error::UndesirablePropertyKey);
                 }
-                self.main.plugins = parse_vec(&val)?;
+                self.main.packages = parse_vec(&val)?;
             }
             _ => return Err(Error::UnexpectedComponent),
         }
@@ -77,7 +77,7 @@ impl Configs {
         &mut self,
         iter: &mut Peekable<impl Iterator<Item = Component>>,
     ) -> Result<(), Error> {
-        let mut drive = Plugin::default();
+        let mut drive = Package::default();
         loop {
             let Some(peeked) = iter.peek() else {
                 break;
@@ -92,12 +92,12 @@ impl Configs {
 
             self.parse_drive_comp(comp, &mut drive)?;
         }
-        self.plugins.insert("drive", drive);
+        self.packages.insert("drive", drive);
 
         Ok(())
     }
 
-    fn parse_drive_comp(&mut self, comp: Component, drive: &mut Plugin) -> Result<(), Error> {
+    fn parse_drive_comp(&mut self, comp: Component, drive: &mut Package) -> Result<(), Error> {
         match comp {
             Component::Comment(_) => return Ok(()),
             Component::Property(Property { key, val }) => match key.as_str() {
