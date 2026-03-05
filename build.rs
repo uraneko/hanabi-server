@@ -43,7 +43,7 @@ fn main() -> Result<(), Error> {
     let pipeline = DBPipeline::with_dbs(ddir, main_db);
     pipeline.build()?;
 
-    let pipeline = UIPipeline::new().copy(true).build(false);
+    let pipeline = UIPipeline::new().copy(true).build(true);
     pipeline.update("../../js/hanabi/hanabi", "build")?;
 
     Ok(())
