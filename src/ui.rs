@@ -75,8 +75,7 @@ impl UIPipeline {
         }
 
         if self.copy {
-            let path_to_copy_build = &[cargo_dir.dir_ref(), "/", copy_path].concat();
-            copy_ui(path_to_copy_build).map(|_| ())?
+            copy_ui(cargo_dir.dir_ref()).map(|_| ())?
         }
         cargo_dir.travel()?;
 
