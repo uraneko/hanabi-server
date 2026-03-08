@@ -1,2 +1,4 @@
 /target
 /data
+/crates/*/target
+/crates/*/data

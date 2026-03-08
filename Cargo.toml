@@ -2,7 +2,7 @@
 name = "hanabi"
 version = "0.1.0"
 edition = "2024"
-# build = false
+build = false
 
 [[example]]
 name = "test"
