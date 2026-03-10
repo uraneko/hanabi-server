@@ -1,46 +1,19 @@
+use super::Error;
+use super::dirs::Dir;
 use rusqlite::{Connection, types::Type};
-use std::collections::{HashMap, HashSet};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::collections::HashMap;
+use std::path::Path;
 
-#[derive(Debug, Clone)]
-pub enum Error {
-    FailedToCreateDataDir,
-    FailedToOpenDB,
-    FailedToProcessQueryRow,
-    TableNotFound,
-    FailedToDropTable,
-    TableCreateFailed,
-    TableColumnsMismatch,
-    DataDirNotFound,
-    DataIsNotADir,
-    InvalidConversionStr,
-}
-
-#[derive(Debug)]
-pub struct DataDir(PathBuf);
-
-impl DataDir {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self(PathBuf::from(path.as_ref()))
-    }
-
-    pub fn check(&self) -> Result<(), Error> {
-        if !self.0.exists() {
-            return Err(Error::DataDirNotFound);
-        } else if !self.0.is_dir() {
-            return Err(Error::DataIsNotADir);
-        }
-
-        Ok(())
-    }
-
-    pub fn make(&self) -> Result<(), Error> {
-        fs::create_dir(&self.0).map_err(|_| Error::FailedToCreateDataDir)
-    }
-}
+// #[derive(Debug, Clone)]
+// pub enum Error {
+//     FailedToOpenDB,
+//     FailedToProcessQueryRow,
+//     TableNotFound,
+//     FailedToDropTable,
+//     TableCreateFailed,
+//     TableColumnsMismatch,
+//     InvalidConversionStr,
+// }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct TableLayout {
@@ -111,7 +84,7 @@ impl core::str::FromStr for ColumnOptions {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut chunks = s.split('|');
         let Some(ty) = chunks.next() else {
-            return Err(Error::InvalidConversionStr);
+            return Err(Error::DbInvalidConversionStr);
         };
         let type_ = sqlite_type_from_str(ty)?;
         let mut unique = false;
@@ -140,7 +113,7 @@ fn update_column_option_from_str(
         "u" => *unique = true,
         "nn" => *nullable = false,
         "pk" => *pk = true,
-        _ => return Err(Error::InvalidConversionStr),
+        _ => return Err(Error::DbInvalidConversionStr),
     }
 
     Ok(())
@@ -153,7 +126,7 @@ fn sqlite_type_from_str(s: &str) -> Result<Type, Error> {
         "real" => Type::Real,
         "text" => Type::Text,
         "blob" => Type::Blob,
-        _ => return Err(Error::InvalidConversionStr),
+        _ => return Err(Error::DbInvalidConversionStr),
     })
 }
 
@@ -238,7 +211,7 @@ impl Table {
 
     pub fn drop_from_db(&self, conn: &Connection) -> Result<(), Error> {
         conn.execute(&["drop table ", self.name].concat(), [])
-            .map_err(|_| Error::FailedToDropTable)
+            .map_err(|_| Error::DbFailedToDropTable)
             .map(|_| ())
     }
 
@@ -246,9 +219,9 @@ impl Table {
         if !conn
             .prepare(&["select * from ", self.name, " limit 0"].concat())
             .map(|stt| stt.column_names() == self.layout.column_names().as_slice())
-            .map_err(|_| Error::FailedToProcessQueryRow)?
+            .map_err(|_| Error::DbFailedToProcessQueryRow)?
         {
-            return Err(Error::TableColumnsMismatch);
+            return Err(Error::DbTableColumnsMismatch);
         }
 
         Ok(())
@@ -271,7 +244,7 @@ impl Table {
         // }
 
         if !tables.contains(&self.name.to_owned()) {
-            return Err(Error::TableNotFound);
+            return Err(Error::DbTableNotFound);
         }
 
         Ok(())
@@ -290,7 +263,7 @@ impl Table {
 
     pub fn make(&self, conn: &Connection) -> Result<String, Error> {
         conn.execute(&self.sql(), [])
-            .map_err(|_| Error::TableCreateFailed)
+            .map_err(|_| Error::DbTableCreateFailed)
             .map(|_| self.name.to_owned())
     }
 }
@@ -304,18 +277,18 @@ pub struct Database {
 
 fn get_db_tables(conn: &Connection) -> Result<Vec<String>, Error> {
     conn.prepare("select name from sqlite_master where type='table';")
-        .map_err(|_| Error::FailedToProcessQueryRow)?
+        .map_err(|_| Error::DbFailedToProcessQueryRow)?
         .query([])
-        .map_err(|_| Error::FailedToProcessQueryRow)?
+        .map_err(|_| Error::DbFailedToProcessQueryRow)?
         .mapped(|row| row.get::<usize, String>(0))
         .collect::<Result<Vec<String>, _>>()
-        .map_err(|_| Error::FailedToProcessQueryRow)
+        .map_err(|_| Error::DbFailedToProcessQueryRow)
 }
 
 impl Database {
     // NOTE `Connection::open` creates a new db if it doesnt exist
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let conn = Connection::open(path).map_err(|_| Error::FailedToOpenDB)?;
+        let conn = Connection::open(path).map_err(|_| Error::DbFailedToOpenDB)?;
         let state: Vec<String> = get_db_tables(&conn)?;
         Ok(Self {
             conn,
@@ -328,7 +301,7 @@ impl Database {
         path: impl AsRef<Path>,
         tables: impl IntoIterator<Item = Table>,
     ) -> Result<Self, Error> {
-        let conn = Connection::open(path).map_err(|_| Error::FailedToOpenDB)?;
+        let conn = Connection::open(path).map_err(|_| Error::DbFailedToOpenDB)?;
         let state = get_db_tables(&conn)?;
 
         Ok(Self {
@@ -357,7 +330,7 @@ impl Database {
 
                 match t.check(&state) {
                     ok @ Ok(_) => return ok,
-                    e @ Err(Error::TableNotFound) => {
+                    e @ Err(Error::DbTableNotFound) => {
                         if t.options.make {
                             let name = t.make(&self.conn)?;
                             state.push(name);
@@ -371,7 +344,7 @@ impl Database {
 
                 match t.check_columns(&self.conn) {
                     Ok(()) => (),
-                    e @ Err(Error::TableColumnsMismatch) => {
+                    e @ Err(Error::DbTableColumnsMismatch) => {
                         if t.options.remake {
                             t.drop_from_db(&self.conn)?;
                             t.make(&self.conn)?;
@@ -393,20 +366,20 @@ impl Database {
 }
 
 #[derive(Debug)]
-pub struct DBPipeline {
-    dir: DataDir,
+pub struct DbPipeline {
+    dir: Dir,
     databases: Vec<Database>,
 }
 
-impl DBPipeline {
-    pub fn new(dir: DataDir) -> Self {
+impl DbPipeline {
+    pub fn new(dir: Dir) -> Self {
         Self {
             dir,
             databases: Vec::new(),
         }
     }
 
-    pub fn with_dbs(dir: DataDir, dbs: impl IntoIterator<Item = Database>) -> Self {
+    pub fn with_dbs(dir: Dir, dbs: impl IntoIterator<Item = Database>) -> Self {
         Self {
             dir,
             databases: Vec::from_iter(dbs.into_iter()),
@@ -420,9 +393,9 @@ impl DBPipeline {
     }
 
     pub fn check_dir(&self) -> Result<(), Error> {
-        match self.dir.check() {
-            e @ Err(Error::DataIsNotADir) => return e,
-            Err(Error::DataDirNotFound) => self.dir.make(),
+        match self.dir.is_dir() {
+            e @ Err(Error::DirsDirIsNoDir) => return e,
+            Err(Error::DirsDirNotFound) => self.dir.make(),
             ok @ Ok(()) => return ok,
             _ => unreachable!("function doesnt return this variant"),
         }

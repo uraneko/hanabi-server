@@ -1,20 +1,22 @@
 pub mod db;
+pub mod dirs;
 pub mod ui;
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    DB(db::Error),
-    UI(ui::Error),
-}
-
-impl From<db::Error> for Error {
-    fn from(err: db::Error) -> Self {
-        Self::DB(err)
-    }
-}
-
-impl From<ui::Error> for Error {
-    fn from(err: ui::Error) -> Self {
-        Self::UI(err)
-    }
+    DbFailedToOpenDB,
+    DbFailedToProcessQueryRow,
+    DbTableNotFound,
+    DbFailedToDropTable,
+    DbTableCreateFailed,
+    DbTableColumnsMismatch,
+    DbInvalidConversionStr,
+    UiInvalidDirsInstance,
+    UiFailedToBuildJsPackage,
+    UiFailedToCopyPackageFiles,
+    DirsCwdCallFailed,
+    DirsCdCallFailed,
+    DirsDirNotFound,
+    DirsDirIsNoDir,
+    DirsMkdirCallFailed,
 }

@@ -1,7 +1,8 @@
 use hanabi_build::{
     Error,
-    db::{DBPipeline, DataDir, Database, Table, TableLayout, TableOptions},
-    ui::UIPipeline,
+    db::{Database, DbPipeline, Table, TableLayout, TableOptions},
+    dirs::Dir,
+    ui::UiPipeline,
 };
 use std::sync::LazyLock;
 
@@ -35,16 +36,23 @@ const TOKENS_TABLE: LazyLock<Result<Table, Error>> = LazyLock::new(|| {
 
 fn main() -> Result<(), Error> {
     println!("cargo:rerun-if-changed=../../js/hanabi/hanabi*/src");
-    let ddir = DataDir::new(DATA_PATH);
+    let cargo_dir = Dir::new()?;
+    let mut data_dir = cargo_dir.clone();
+    data_dir.push(DATA_PATH);
+
     let users = USERS_TABLE.clone()?;
     let tokens = TOKENS_TABLE.clone()?;
-
     let main_db = Database::with_tables(MAIN_DB, [users, tokens]);
-    let pipeline = DBPipeline::with_dbs(ddir, main_db);
-    pipeline.build()?;
+    let db = DbPipeline::with_dbs(data_dir, main_db);
+    db.build()?;
 
-    let pipeline = UIPipeline::new().copy(true).build(true);
-    pipeline.update("../../js/hanabi/hanabi", "build")?;
+    let js_dir = Dir::from_path("../../js/hanabi/");
+    js_dir.goto()?;
+    let ui = UiPipeline::new()
+        .build(&["pnpm", "build"])
+        .copy(["build", cargo_dir.as_str().unwrap()]);
+    ui.update()?;
+    cargo_dir.goto()?;
 
     Ok(())
 }
